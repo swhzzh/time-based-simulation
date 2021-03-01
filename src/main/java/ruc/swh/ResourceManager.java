@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ResourceManager {
 
@@ -137,6 +138,10 @@ public class ResourceManager {
   public void addDataset(Dataset dataset){
     mCache.addDataset(dataset.getId(), dataset.getChunkNum());
     mStorage.addDataset(dataset);
+  }
+
+  public Set<Long> getAllDatasets(){
+    return mStorage.getAllDatasets();
   }
 
   public List<Integer> getCachedChunks(long datasetId){

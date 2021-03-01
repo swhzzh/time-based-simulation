@@ -23,16 +23,24 @@ public class Simulator {
   private ExecutorService mRemoteDataLoadingThread = Executors.newSingleThreadExecutor();
   private ExecutorService mWorkloadExecutors = Executors.newCachedThreadPool();
   private FileWriter mFileWriter;
+  private FileWriter mCacheUsageWriter;
+  private FileWriter mBandwidthUsageWriter;
+  private long mRemoteBWPerLoadingTask;
+  private long mCacheCapacity;
 
 
   public Simulator(){
     mResourceManager = new ResourceManager();
+    mRemoteBWPerLoadingTask = 1000;
+    mCacheCapacity = 300;
     try {
-      mFileWriter = new FileWriter(new File("src/main/resources/logs/300GB-1000MBps.log"));
+      mFileWriter = new FileWriter(new File("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-running-info.log"));
+      mCacheUsageWriter = new FileWriter(new File("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-cache-usage.log"));
+      mBandwidthUsageWriter = new FileWriter(new File("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-bw-usage.log"));
     } catch (IOException e) {
       e.printStackTrace();
     }
-    mRemoteDataLoader = new RemoteDataLoader(LOADING_THREAD_POOL_SIZE, mResourceManager, mFileWriter);
+    mRemoteDataLoader = new RemoteDataLoader(LOADING_THREAD_POOL_SIZE, mResourceManager, mRemoteBWPerLoadingTask, mFileWriter, mCacheUsageWriter, mBandwidthUsageWriter);
 //    mRemoteDataLoadingThread.execute(() -> {
 //      // 先判断有没有需要加载的两个chunk, 如果有空间直接加载, 否则找出已经缓存的最久不会被访问的两个chunk, 判断他们的时间关系, 是否可以replace
 //      List<WorkloadRunningTimeInfo> workloadRunningTimeInfos = new ArrayList<>();

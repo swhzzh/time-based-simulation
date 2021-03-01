@@ -3,6 +3,7 @@ package ruc.swh;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 // token bucket
 public class Storage {
@@ -16,6 +17,10 @@ public class Storage {
 
   public void addDataset(Dataset dataset){
     mDatasetMap.put(dataset.getId(), dataset);
+  }
+
+  public Set<Long> getAllDatasets(){
+    return mDatasetMap.keySet();
   }
 
 

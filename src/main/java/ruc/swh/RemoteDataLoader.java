@@ -26,15 +26,21 @@ public class RemoteDataLoader {
   private ExecutorService mExecutorService;
   private ResourceManager mResourceManager;
   private AtomicInteger mRunningTaskNum;
+  private long mRemoteBWPerLoadingTask;
   private FileWriter mFileWriter;
   private boolean mNoChunkToLoadLastTime;
+  private FileWriter mCacheUsageWriter;
+  private FileWriter mBandwidthUsageWriter;
 
-  public RemoteDataLoader(int threadPoolSize, ResourceManager resourceManager, FileWriter fileWriter) {
+  public RemoteDataLoader(int threadPoolSize, ResourceManager resourceManager, long remoteBWPerLoadingTask, FileWriter fileWriter, FileWriter cacheUsageWriter, FileWriter bandwidthUsageWriter) {
     mExecutorService = Executors.newFixedThreadPool(threadPoolSize);
     mRunningTaskNum = new AtomicInteger(threadPoolSize);
     mResourceManager = resourceManager;
+    mRemoteBWPerLoadingTask = remoteBWPerLoadingTask;
     mFileWriter = fileWriter;
     mNoChunkToLoadLastTime = false;
+    mCacheUsageWriter = cacheUsageWriter;
+    mBandwidthUsageWriter = bandwidthUsageWriter;
   }
   
   public void loadChunks(List<WorkloadDataReadingInfo> workloadDataReadingInfos)
@@ -106,20 +112,7 @@ public class RemoteDataLoader {
           }
         }
       }
-//      Iterator<Integer> descendingIterator = readChunks.descendingIterator();
-//      temp = 0;
-//      while (descendingIterator.hasNext()){
-//        int chunkId = descendingIterator.next();
-//        if (mResourceManager.isChunkCached(datasetId, chunkId)){
-//          // 这里不应该用latestTime, 而应该计算当前chunk剩余的时间, 否则可能出现当前chunk等了很久, 导致访问过的cache的chunk的时间序列提前的状况.
-//          chunksToEvictToTimeInfoMap.put(new Pair<>(datasetId, chunkId),
-//              System.currentTimeMillis() + info.getCurrentChunkRemainTime() + (unReadChunks.size() - 1 + readAndCachedChunkNum - 1 - temp) * info.getMinChunkConsumeTime());
-//          temp++;
-//          if (temp == 2){
-//            break;
-//          }
-//        }
-//      }
+
     }
 
     // 3.decide chunks to load and evict globally
@@ -147,29 +140,13 @@ public class RemoteDataLoader {
 
         }
         else {
-          for (Map.Entry<Long, List<Integer>> entry : allCachedChunks.entrySet()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(entry.getKey()).append(": ");
-            for (Integer chunk : entry.getValue()) {
-              sb.append(chunk).append(", ");
-            }
-            System.out.println(sb);
-            mFileWriter.write(sb.toString() + "\n");
-          }
+          printCacheUsage(allCachedChunks);
           mResourceManager.deleteChunk(chunksToEvictList.get(0).getKey().getKey(), chunksToEvictList.get(0).getKey().getValue());
           loadChunks(chunksToLoadList.get(0).getKey(),null);
         }
       }
       else {
-        for (Map.Entry<Long, List<Integer>> entry : allCachedChunks.entrySet()) {
-          StringBuilder sb = new StringBuilder();
-          sb.append(entry.getKey()).append(": ");
-          for (Integer chunk : entry.getValue()) {
-            sb.append(chunk).append(", ");
-          }
-          System.out.println(sb);
-          mFileWriter.write(sb.toString() + "\n");
-        }
+        printCacheUsage(allCachedChunks);
         loadChunks(chunksToLoadList.get(0).getKey(),null);
       }
     }
@@ -185,29 +162,13 @@ public class RemoteDataLoader {
 
         }
         else if (chunksToEvictList.size() == 1 || (chunksToEvictList.size() > 1 && chunksToEvictList.get(1).getValue() <= chunksToLoadList.get(1).getValue())){
-          for (Map.Entry<Long, List<Integer>> entry : allCachedChunks.entrySet()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(entry.getKey()).append(": ");
-            for (Integer chunk : entry.getValue()) {
-              sb.append(chunk).append(", ");
-            }
-            System.out.println(sb);
-            mFileWriter.write(sb.toString() + "\n");
-          }
+          printCacheUsage(allCachedChunks);
           mResourceManager.deleteChunk(chunksToEvictList.get(0).getKey().getKey(), chunksToEvictList.get(0).getKey()
               .getValue());
           loadChunks(chunksToLoadList.get(0).getKey(),null);
         }
         else {
-          for (Map.Entry<Long, List<Integer>> entry : allCachedChunks.entrySet()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(entry.getKey()).append(": ");
-            for (Integer chunk : entry.getValue()) {
-              sb.append(chunk).append(", ");
-            }
-            System.out.println(sb);
-            mFileWriter.write(sb.toString() + "\n");
-          }
+          printCacheUsage(allCachedChunks);
           mResourceManager.deleteChunk(chunksToEvictList.get(0).getKey().getKey(), chunksToEvictList.get(0).getKey().getValue());
           mResourceManager.deleteChunk(chunksToEvictList.get(1).getKey().getKey(), chunksToEvictList.get(1).getKey().getValue());
           loadChunks(chunksToLoadList.get(0).getKey(), chunksToLoadList.get(1).getKey());
@@ -220,15 +181,7 @@ public class RemoteDataLoader {
           Thread.sleep(1000);
           return;
         }
-        for (Map.Entry<Long, List<Integer>> entry : allCachedChunks.entrySet()) {
-          StringBuilder sb = new StringBuilder();
-          sb.append(entry.getKey()).append(": ");
-          for (Integer chunk : entry.getValue()) {
-            sb.append(chunk).append(", ");
-          }
-          System.out.println(sb);
-          mFileWriter.write(sb.toString() + "\n");
-        }
+        printCacheUsage(allCachedChunks);
         chunksToEvictList.sort(desCmp);
         if (chunksToEvictList.get(0).getValue() <= chunksToEvictList.get(1).getValue()){
           loadChunks(chunksToLoadList.get(0).getKey(), null);
@@ -239,15 +192,7 @@ public class RemoteDataLoader {
         }
       }
       else {
-        for (Map.Entry<Long, List<Integer>> entry : allCachedChunks.entrySet()) {
-          StringBuilder sb = new StringBuilder();
-          sb.append(entry.getKey()).append(": ");
-          for (Integer chunk : entry.getValue()) {
-            sb.append(chunk).append(", ");
-          }
-          System.out.println(sb);
-          mFileWriter.write(sb.toString() + "\n");
-        }
+        printCacheUsage(allCachedChunks);
         loadChunks(chunksToLoadList.get(0).getKey(), chunksToLoadList.get(1).getKey());
       }
     }
@@ -412,16 +357,30 @@ public class RemoteDataLoader {
 //      futures.add(mExecutorService.submit(new RemoteReader(entry.getKey(), entry.getValue())));
 //    }
     if (chunk1 != null){
-      futures.add(mExecutorService.submit(new RemoteReader(chunk1.getKey(), chunk1.getValue())));
+      futures.add(mExecutorService.submit(new RemoteReader(mRemoteBWPerLoadingTask, chunk1.getKey(), chunk1.getValue())));
       System.out.println("load chunk: " + chunk1.getKey() + "-" + chunk1.getValue());
       mFileWriter.write( "load chunk: " + chunk1.getKey() + "-" + chunk1.getValue() + "\n");
     }
     if (chunk2 != null){
-      futures.add(mExecutorService.submit(new RemoteReader(chunk2.getKey(), chunk2.getValue())));
+      futures.add(mExecutorService.submit(new RemoteReader(mRemoteBWPerLoadingTask, chunk2.getKey(), chunk2.getValue())));
       System.out.println("load chunk: " + chunk2.getKey() + "-" + chunk2.getValue());
       mFileWriter.write("load chunk: " + chunk2.getKey() + "-" + chunk2.getValue() + "\n");
-
     }
+
+    for (Long dataset : mResourceManager.getAllDatasets()) {
+      int bw = 0;
+      if (chunk1 != null && dataset.equals(chunk1.getKey())) {
+        bw += mRemoteBWPerLoadingTask;
+      }
+      if (chunk2 != null && dataset.equals(chunk2.getKey())){
+        bw += mRemoteBWPerLoadingTask;
+      }
+      mBandwidthUsageWriter.write(dataset + ":" + bw + ",");
+    }
+    mBandwidthUsageWriter.write("\n");
+
+    mCacheUsageWriter.flush();
+    mBandwidthUsageWriter.flush();
 
     while (true){
       boolean flag = false;
@@ -448,6 +407,21 @@ public class RemoteDataLoader {
     mExecutorService.shutdown();
   }
 
+  public void printCacheUsage(Map<Long, List<Integer>> allCachedChunks) throws IOException {
+    for (Map.Entry<Long, List<Integer>> entry : allCachedChunks.entrySet()) {
+      StringBuilder sb = new StringBuilder();
+      sb.append(entry.getKey()).append(": ");
+      for (Integer chunk : entry.getValue()) {
+        sb.append(chunk).append(", ");
+      }
+      System.out.println(sb);
+      mFileWriter.write(sb.toString() + "\n");
+      mCacheUsageWriter.write(entry.getKey() + ":" + entry.getValue().size() + ",");
+    }
+    mCacheUsageWriter.write("\n");
+  }
+
+
   class RemoteReader implements Runnable{
 
     private long mRemoteBW;
@@ -457,8 +431,8 @@ public class RemoteDataLoader {
 //    private long mItemCount; // item count
 //    private int mItemSize;
 
-    public RemoteReader(long datasetId, int chunkId) {
-      mRemoteBW = 1000 * 1000; // KB
+    public RemoteReader(long remoteBW, long datasetId, int chunkId) {
+      mRemoteBW = remoteBW * 1000; // KB
       mTokenBucket = TokenBuckets.builder().withCapacity(mRemoteBW).withFixedIntervalRefillStrategy(mRemoteBW / 1000, 1, TimeUnit.MILLISECONDS).build();
 //      mItemSize = 100; // KB
       mDatasetId = datasetId;
@@ -468,6 +442,7 @@ public class RemoteDataLoader {
 
     @Override
     public void run() {
+      // TODO: 2021/3/1 偶尔出现chunk加载不了, 导致相应的workload卡死的情况... 
       // 1.shuffle loading order
       List<Integer> itemIds = new ArrayList<>();
       int itemCount = mResourceManager.getChunkItemCount(mDatasetId, mChunkId);
