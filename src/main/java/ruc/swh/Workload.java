@@ -87,6 +87,7 @@ public class Workload implements Runnable{
 
     @Override
     public void run() {
+        long startTime = System.currentTimeMillis();
         int minChunkConsumeTime = mChunkItemCount * 1000 / mMaxNumOfItemsPerSecond;
         for (int i = 0; i < this.mEpochNum; i++) {
             System.out.println(this.mId + "'s " + "current epoch: " + i);
@@ -179,8 +180,11 @@ public class Workload implements Runnable{
                 e.printStackTrace();
             }
         }
+        long totalRunningTime = System.currentTimeMillis() - startTime;
+        System.out.println(mId + "-workload runs for " + totalRunningTime + "ms");
         System.out.println(mId + "-workload waits for: " + mWaitTime + "ms");
         try {
+            mFileWriter.write(mId + "-workload runs for " + totalRunningTime + "ms\n");
             mFileWriter.write(mId + "-workload waits for: " + mWaitTime + "ms" + "\n");
         } catch (IOException e) {
             e.printStackTrace();

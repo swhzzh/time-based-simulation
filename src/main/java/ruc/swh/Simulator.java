@@ -28,7 +28,7 @@ public class Simulator {
   public Simulator(){
     mResourceManager = new ResourceManager();
     try {
-      mFileWriter = new FileWriter(new File("src/main/resources/logs/300GB-600MBps.log"));
+      mFileWriter = new FileWriter(new File("src/main/resources/logs/300GB-1000MBps.log"));
     } catch (IOException e) {
       e.printStackTrace();
     }
