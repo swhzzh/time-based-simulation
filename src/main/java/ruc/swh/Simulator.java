@@ -28,7 +28,7 @@ public class Simulator {
   public Simulator(){
     mResourceManager = new ResourceManager();
     try {
-      mFileWriter = new FileWriter(new File("src/main/resources/logs/300GB-500MBps.log"));
+      mFileWriter = new FileWriter(new File("src/main/resources/logs/300GB-600MBps.log"));
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -99,6 +99,11 @@ public class Simulator {
             simulator.mRemoteDataLoader.loadChunks(workloadDataReadingInfos);
           } catch (IOException | InterruptedException e) {
             e.printStackTrace();
+            // 在shutdown loading thread之后, 设置了interrupt标记, loadChunks中的sleep会强制抛出interruptedException,
+            // 并清除了interrupt标记, 导致thread继续运行,
+            // 因此这里可以强制重新设置interrupt标记, 但这种不太直观
+            // 可以显式的传递terminate信号
+            Thread.currentThread().interrupt();
           }
         }
       }
@@ -151,7 +156,7 @@ public class Simulator {
 //      }
 //    }
 
-    simulator.mRemoteDataLoadingThread.shutdownNow();
+    simulator.mRemoteDataLoadingThread.shutdown();
     simulator.mRemoteDataLoader.shutdown();
     System.out.println("All workloads are finished!");
     simulator.mFileWriter.write("All workloads are finished!\n");

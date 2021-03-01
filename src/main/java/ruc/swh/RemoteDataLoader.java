@@ -445,7 +445,7 @@ public class RemoteDataLoader {
   }
 
   public void shutdown(){
-    mExecutorService.shutdownNow();
+    mExecutorService.shutdown();
   }
 
   class RemoteReader implements Runnable{
@@ -458,7 +458,7 @@ public class RemoteDataLoader {
 //    private int mItemSize;
 
     public RemoteReader(long datasetId, int chunkId) {
-      mRemoteBW = 500 * 1000; // KB
+      mRemoteBW = 600 * 1000; // KB
       mTokenBucket = TokenBuckets.builder().withCapacity(mRemoteBW).withFixedIntervalRefillStrategy(mRemoteBW / 1000, 1, TimeUnit.MILLISECONDS).build();
 //      mItemSize = 100; // KB
       mDatasetId = datasetId;
