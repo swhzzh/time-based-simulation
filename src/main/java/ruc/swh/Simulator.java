@@ -31,7 +31,7 @@ public class Simulator {
 
   public Simulator(){
     mResourceManager = new ResourceManager();
-    mRemoteBWPerLoadingTask = 1000;
+    mRemoteBWPerLoadingTask = 200;
     mCacheCapacity = 300;
     try {
       mFileWriter = new FileWriter(new File("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-running-info.log"));
