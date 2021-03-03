@@ -116,10 +116,10 @@ public class Workload implements Runnable{
                         continue;
                     }
 //                    if (mResourceManager.isChunkCached(mDatasetId,j)){
-                    if (skipChunks == mChunkNum - readChunks.size()){
-                        System.out.println(mId + ": skip " + (mChunkNum - readChunks.size()) + " chunk, need to consume uncached chunk");
+//                    if (skipChunks == mChunkNum - readChunks.size()){
+                        System.out.println(mId + ": skip " + skipChunks + " chunk, need to consume uncached chunk " + j);
                         skipChunks = 0;
-                    }
+//                    }
 
                         // load & evict
                         // load时计算当前未读的chunk中有多少cached的, 从未cached的并且未读的chunk中选出最小的两个作为备选
@@ -208,22 +208,6 @@ public class Workload implements Runnable{
                 readChunkList.add(i);
             }
         }
-    }
-
-    public TreeSet<Integer> getReadChunks() {
-        synchronized (readChunks){
-            return new TreeSet<>(readChunks);
-        }
-    }
-
-    public TreeSet<Integer> getUnReadChunks(){
-        TreeSet<Integer> unReadChunks = new TreeSet<>();
-        for (int i = 0; i < mChunkNum; i++) {
-            if (!readChunks.contains(i)){
-                unReadChunks.add(i);
-            }
-        }
-        return unReadChunks;
     }
 
     public void setFileWriter(FileWriter fileWriter) {
