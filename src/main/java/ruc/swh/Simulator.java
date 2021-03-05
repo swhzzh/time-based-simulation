@@ -64,7 +64,15 @@ public class Simulator {
   }
 
   public static void main(String[] args) throws InterruptedException, IOException {
-    Simulator simulator = new Simulator(900, 300, "src/main/resources/logs");
+    long bw = 1000;
+    long cacheCapacity = 300;
+    String logDir = "src/main/resources/logs";
+    if (args.length == 3){
+      bw = Long.parseLong(args[0]);
+      cacheCapacity = Long.parseLong(args[1]);
+      logDir = args[2];
+    }
+    Simulator simulator = new Simulator(bw, cacheCapacity, logDir);
 
     // 1.define dataset
     // total: 200GB, chunkSize: 10GB, itemSize: 100KB
