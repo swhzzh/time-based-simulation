@@ -4,6 +4,7 @@ import com.google.common.base.Objects;
 import org.isomorphism.util.TokenBucket;
 import org.isomorphism.util.TokenBuckets;
 
+import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +51,8 @@ public class Workload implements Runnable{
 
     private final Set<Integer> readChunks = new HashSet<>();
 
-    private FileWriter mFileWriter;
+    private BufferedWriter mLogWriter;
+    private BufferedWriter mChunkReadTimeWriter;
 
     public Workload(long id, long datasetId, int chunkNum, int epochNum, int batchItemCount,
         int chunkBatchNum, int maxNumOfItemsPerSecond, ResourceManager resourceManager) {
@@ -92,7 +94,7 @@ public class Workload implements Runnable{
         for (int i = 0; i < this.mEpochNum; i++) {
             System.out.println(this.mId + "'s " + "current epoch: " + i);
             try {
-                mFileWriter.write(this.mId + "'s " + "current epoch: " + i + "\n");
+                mLogWriter.write(this.mId + "'s " + "current epoch: " + i + "\n");
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -120,7 +122,7 @@ public class Workload implements Runnable{
                         System.out.println(mId + ": skip " + skipChunks + " chunk, need to consume uncached chunk " + j);
                         skipChunks = 0;
 //                    }
-
+                    long chunkStartTime = System.currentTimeMillis();
                         // load & evict
                         // load时计算当前未读的chunk中有多少cached的, 从未cached的并且未读的chunk中选出最小的两个作为备选
                         // evict时选择读过的chunk中的cache的最大的两个chunk作为备选
@@ -131,7 +133,7 @@ public class Workload implements Runnable{
                         // 对于共享dataset的情况, 因为都是从未cached的chunk中选, 所以还是按时间来选, 也没问题.
                     System.out.println(this.mId + "'s " + "current chunk: " + j);
                     try {
-                        mFileWriter.write(this.mId + "'s " + "current chunk: " + j + "\n");
+                        mLogWriter.write(this.mId + "'s " + "current chunk: " + j + "\n");
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -167,6 +169,11 @@ public class Workload implements Runnable{
                         mResourceManager.notifyDoneUsingChunk(mId, mDatasetId, j);
                         mCurrentChunkRemainTime = 0;
                         readChunks.add(j);
+                    try {
+                        mChunkReadTimeWriter.write(mId + ":" + i + ":" + j + ":" + (System.currentTimeMillis() - chunkStartTime) + "\n");
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
 //                        mLatestChunk = (mLatestChunk + 1) % mChunkNum;
 //                        mLatestTime = System.currentTimeMillis();
 //                    }
@@ -175,7 +182,8 @@ public class Workload implements Runnable{
             }
             readChunks.clear();
             try {
-                mFileWriter.flush();
+                mLogWriter.flush();
+                mChunkReadTimeWriter.flush();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -184,8 +192,8 @@ public class Workload implements Runnable{
         System.out.println(mId + "-workload runs for " + totalRunningTime + "ms");
         System.out.println(mId + "-workload waits for: " + mWaitTime + "ms");
         try {
-            mFileWriter.write(mId + "-workload runs for " + totalRunningTime + "ms\n");
-            mFileWriter.write(mId + "-workload waits for: " + mWaitTime + "ms" + "\n");
+            mLogWriter.write(mId + "-workload runs for " + totalRunningTime + "ms\n");
+            mLogWriter.write(mId + "-workload waits for: " + mWaitTime + "ms" + "\n");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -210,8 +218,12 @@ public class Workload implements Runnable{
         }
     }
 
-    public void setFileWriter(FileWriter fileWriter) {
-        mFileWriter = fileWriter;
+    public void setLogWriter(BufferedWriter logWriter) {
+        mLogWriter = logWriter;
+    }
+
+    public void setChunkReadTimeWriter(BufferedWriter mChunkReadTimeWriter) {
+        this.mChunkReadTimeWriter = mChunkReadTimeWriter;
     }
 
     @Override

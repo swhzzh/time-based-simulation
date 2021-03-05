@@ -21,6 +21,11 @@ public class ResourceManager {
     mWorkloadToChunkReadOrderMap = new HashMap<>();
   }
 
+  public ResourceManager(int cacheCapacity){
+    mCache = new Cache(cacheCapacity / 10);
+    mStorage = new Storage();
+    mWorkloadToChunkReadOrderMap = new HashMap<>();
+  }
 
 
   public void notifyUsingChunk(long workloadId, long datasetId, int chunkId){

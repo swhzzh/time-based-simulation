@@ -4,6 +4,7 @@ package ruc.swh;
 import javafx.util.Pair;
 import org.isomorphism.util.*;
 
+import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,20 +28,20 @@ public class RemoteDataLoader {
   private ResourceManager mResourceManager;
   private AtomicInteger mRunningTaskNum;
   private long mRemoteBWPerLoadingTask;
-  private FileWriter mFileWriter;
+  private BufferedWriter mLogWriter;
   private boolean mNoChunkToLoadLastTime;
-  private FileWriter mCacheUsageWriter;
-  private FileWriter mBandwidthUsageWriter;
+  private BufferedWriter mCacheUsageWriter;
+  private BufferedWriter mBwUsageWriter;
 
-  public RemoteDataLoader(int threadPoolSize, ResourceManager resourceManager, long remoteBWPerLoadingTask, FileWriter fileWriter, FileWriter cacheUsageWriter, FileWriter bandwidthUsageWriter) {
+  public RemoteDataLoader(int threadPoolSize, ResourceManager resourceManager, long remoteBWPerLoadingTask, BufferedWriter logWriter, BufferedWriter cacheUsageWriter, BufferedWriter bandwidthUsageWriter) {
     mExecutorService = Executors.newFixedThreadPool(threadPoolSize);
     mRunningTaskNum = new AtomicInteger(threadPoolSize);
     mResourceManager = resourceManager;
     mRemoteBWPerLoadingTask = remoteBWPerLoadingTask;
-    mFileWriter = fileWriter;
+    mLogWriter = logWriter;
     mNoChunkToLoadLastTime = false;
     mCacheUsageWriter = cacheUsageWriter;
-    mBandwidthUsageWriter = bandwidthUsageWriter;
+    mBwUsageWriter = bandwidthUsageWriter;
   }
   
   public void loadChunks(List<WorkloadDataReadingInfo> workloadDataReadingInfos)
@@ -200,12 +201,12 @@ public class RemoteDataLoader {
     if (chunk1 != null){
       futures.add(mExecutorService.submit(new RemoteReader(mRemoteBWPerLoadingTask, chunk1.getKey(), chunk1.getValue())));
       System.out.println("load chunk: " + chunk1.getKey() + "-" + chunk1.getValue());
-      mFileWriter.write( "load chunk: " + chunk1.getKey() + "-" + chunk1.getValue() + "\n");
+      mLogWriter.write( "load chunk: " + chunk1.getKey() + "-" + chunk1.getValue() + "\n");
     }
     if (chunk2 != null){
       futures.add(mExecutorService.submit(new RemoteReader(mRemoteBWPerLoadingTask, chunk2.getKey(), chunk2.getValue())));
       System.out.println("load chunk: " + chunk2.getKey() + "-" + chunk2.getValue());
-      mFileWriter.write("load chunk: " + chunk2.getKey() + "-" + chunk2.getValue() + "\n");
+      mLogWriter.write("load chunk: " + chunk2.getKey() + "-" + chunk2.getValue() + "\n");
     }
 
     for (Long dataset : mResourceManager.getAllDatasets()) {
@@ -216,12 +217,12 @@ public class RemoteDataLoader {
       if (chunk2 != null && dataset.equals(chunk2.getKey())){
         bw += mRemoteBWPerLoadingTask;
       }
-      mBandwidthUsageWriter.write(dataset + ":" + bw + ",");
+      mBwUsageWriter.write(dataset + ":" + bw + ",");
     }
-    mBandwidthUsageWriter.write("\n");
+    mBwUsageWriter.write("\n");
 
     mCacheUsageWriter.flush();
-    mBandwidthUsageWriter.flush();
+    mBwUsageWriter.flush();
 
     while (true){
       boolean flag = false;
@@ -256,7 +257,7 @@ public class RemoteDataLoader {
         sb.append(chunk).append(", ");
       }
       System.out.println(sb);
-      mFileWriter.write(sb.toString() + "\n");
+      mLogWriter.write(sb.toString() + "\n");
       mCacheUsageWriter.write(entry.getKey() + ":" + entry.getValue().size() + ",");
     }
     mCacheUsageWriter.write("\n");

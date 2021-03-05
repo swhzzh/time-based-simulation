@@ -1,5 +1,6 @@
 package ruc.swh;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -22,25 +23,44 @@ public class Simulator {
   private RemoteDataLoader mRemoteDataLoader;
   private ExecutorService mRemoteDataLoadingThread = Executors.newSingleThreadExecutor();
   private ExecutorService mWorkloadExecutors = Executors.newCachedThreadPool();
-  private FileWriter mFileWriter;
-  private FileWriter mCacheUsageWriter;
-  private FileWriter mBandwidthUsageWriter;
+  private BufferedWriter mLogWriter;
+  private BufferedWriter mCacheUsageWriter;
+  private BufferedWriter mBwUsageWriter;
+  private BufferedWriter mChunkReadTimeWriter;
   private long mRemoteBWPerLoadingTask;
   private long mCacheCapacity;
-
+  private String mLogDir;
 
   public Simulator(){
     mResourceManager = new ResourceManager();
     mRemoteBWPerLoadingTask = 200;
     mCacheCapacity = 300;
     try {
-      mFileWriter = new FileWriter(new File("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-running-info.log"));
-      mCacheUsageWriter = new FileWriter(new File("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-cache-usage.log"));
-      mBandwidthUsageWriter = new FileWriter(new File("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-bw-usage.log"));
+      mLogWriter = new BufferedWriter(new FileWriter("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-running-info.log"));
+      mCacheUsageWriter = new BufferedWriter(new FileWriter("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-cache-usage.log"));
+      mBwUsageWriter = new BufferedWriter(new FileWriter("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-bw-usage.log"));
+
     } catch (IOException e) {
       e.printStackTrace();
     }
-    mRemoteDataLoader = new RemoteDataLoader(LOADING_THREAD_POOL_SIZE, mResourceManager, mRemoteBWPerLoadingTask, mFileWriter, mCacheUsageWriter, mBandwidthUsageWriter);
+    mRemoteDataLoader = new RemoteDataLoader(LOADING_THREAD_POOL_SIZE, mResourceManager, mRemoteBWPerLoadingTask, mLogWriter, mCacheUsageWriter, mBwUsageWriter);
+  }
+
+  public Simulator(long mRemoteBWPerLoadingTask, long mCacheCapacity, String mLogDir) {
+    this.mRemoteBWPerLoadingTask = mRemoteBWPerLoadingTask;
+    this.mCacheCapacity = mCacheCapacity;
+    this.mLogDir = mLogDir;
+    mResourceManager = new ResourceManager((int)mCacheCapacity); // GB
+    try {
+      mLogWriter = new BufferedWriter(new FileWriter(mLogDir + "/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-running-info.log"));
+      mCacheUsageWriter = new BufferedWriter(new FileWriter(mLogDir + "/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-cache-usage.log"));
+      mBwUsageWriter = new BufferedWriter(new FileWriter(mLogDir + "/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-bw-usage.log"));
+      mChunkReadTimeWriter = new BufferedWriter(new FileWriter(mLogDir + "/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-chunk-reading-time-info.log"));
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    mRemoteDataLoader = new RemoteDataLoader(LOADING_THREAD_POOL_SIZE, mResourceManager, mRemoteBWPerLoadingTask, mLogWriter, mCacheUsageWriter, mBwUsageWriter);
+
   }
 
   public static void main(String[] args) throws InterruptedException, IOException {
@@ -61,9 +81,12 @@ public class Simulator {
     Workload workload1 = new Workload(1, 1, dataset1.getChunkNum(), 10, 100, 1000, 10000, simulator.mResourceManager);
     Workload workload2 = new Workload(2, 2, dataset2.getChunkNum(), 10, 100, 1000, 5000, simulator.mResourceManager);
     Workload workload3 = new Workload(3, 3, dataset3.getChunkNum(), 10, 100, 1000, 4000, simulator.mResourceManager);
-    workload1.setFileWriter(simulator.mFileWriter);
-    workload2.setFileWriter(simulator.mFileWriter);
-    workload3.setFileWriter(simulator.mFileWriter);
+    workload1.setLogWriter(simulator.mLogWriter);
+    workload2.setLogWriter(simulator.mLogWriter);
+    workload3.setLogWriter(simulator.mLogWriter);
+    workload1.setChunkReadTimeWriter(simulator.mChunkReadTimeWriter);
+    workload2.setChunkReadTimeWriter(simulator.mChunkReadTimeWriter);
+    workload3.setChunkReadTimeWriter(simulator.mChunkReadTimeWriter);
     simulator.mWorkloads.put(workload1,simulator.mWorkloadExecutors.submit(workload1));
     simulator.mWorkloads.put(workload2,simulator.mWorkloadExecutors.submit(workload2));
     simulator.mWorkloads.put(workload3,simulator.mWorkloadExecutors.submit(workload3));
@@ -127,9 +150,11 @@ public class Simulator {
     simulator.mRemoteDataLoadingThread.shutdown();
     simulator.mRemoteDataLoader.shutdown();
     System.out.println("All workloads are finished!");
-    simulator.mFileWriter.write("All workloads are finished!\n");
-    simulator.mFileWriter.flush();
-    simulator.mFileWriter.close();
+    simulator.mLogWriter.write("All workloads are finished!\n");
+    simulator.mLogWriter.close();
+    simulator.mCacheUsageWriter.close();
+    simulator.mBwUsageWriter.close();
+    simulator.mChunkReadTimeWriter.close();
 
   }
 }
