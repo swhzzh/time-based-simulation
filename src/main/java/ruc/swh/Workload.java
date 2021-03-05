@@ -117,10 +117,11 @@ public class Workload implements Runnable{
                         skipChunks++;
                         continue;
                     }
-//                    if (mResourceManager.isChunkCached(mDatasetId,j)){
 //                    if (skipChunks == mChunkNum - readChunks.size()){
+                    if (!mResourceManager.isChunkCached(mDatasetId, j)){
                         System.out.println(mId + ": skip " + skipChunks + " chunk, need to consume uncached chunk " + j);
-                        skipChunks = 0;
+                    }
+                    skipChunks = 0;
 //                    }
                     long chunkStartTime = System.currentTimeMillis();
                         // load & evict

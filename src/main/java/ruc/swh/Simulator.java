@@ -21,7 +21,7 @@ public class Simulator {
   private Map<Workload, Future> mWorkloads = new ConcurrentHashMap<>();
   private ResourceManager mResourceManager;
   private RemoteDataLoader mRemoteDataLoader;
-  private ExecutorService mRemoteDataLoadingThread = Executors.newSingleThreadExecutor();
+//  private ExecutorService mRemoteDataLoadingThread = Executors.newSingleThreadExecutor();
   private ExecutorService mWorkloadExecutors = Executors.newCachedThreadPool();
   private BufferedWriter mLogWriter;
   private BufferedWriter mCacheUsageWriter;
@@ -33,7 +33,7 @@ public class Simulator {
 
   public Simulator(){
     mResourceManager = new ResourceManager();
-    mRemoteBWPerLoadingTask = 200;
+    mRemoteBWPerLoadingTask = 1000;
     mCacheCapacity = 300;
     try {
       mLogWriter = new BufferedWriter(new FileWriter("src/main/resources/logs/" + mCacheCapacity + "GB-" + mRemoteBWPerLoadingTask + "MBps-running-info.log"));
@@ -64,7 +64,7 @@ public class Simulator {
   }
 
   public static void main(String[] args) throws InterruptedException, IOException {
-    Simulator simulator = new Simulator();
+    Simulator simulator = new Simulator(900, 300, "src/main/resources/logs");
 
     // 1.define dataset
     // total: 200GB, chunkSize: 10GB, itemSize: 100KB
@@ -93,28 +93,9 @@ public class Simulator {
 
 
     // 3.load data
-    simulator.mRemoteDataLoadingThread.execute(new Runnable() {
-      @Override
-      public void run() {
-        List<WorkloadDataReadingInfo> workloadDataReadingInfos = new ArrayList<>();
-        while (true){
-          workloadDataReadingInfos.clear();
-          for (Workload workload : simulator.mWorkloads.keySet()) {
-            workloadDataReadingInfos.add(workload.getCurrentDataReadingInfo());
-          }
-          try {
-            simulator.mRemoteDataLoader.loadChunks(workloadDataReadingInfos);
-          } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-            // 在shutdown loading thread之后, 设置了interrupt标记, loadChunks中的sleep会强制抛出interruptedException,
-            // 并清除了interrupt标记, 导致thread继续运行,
-            // 因此这里可以强制重新设置interrupt标记, 但这种不太直观
-            // 可以显式的传递terminate信号
-            Thread.currentThread().interrupt();
-          }
-        }
-      }
-    });
+    RemoteDataLoadingRunnable remoteDataLoadingRunnable = new RemoteDataLoadingRunnable(simulator);
+    new Thread(remoteDataLoadingRunnable).start();
+//    simulator.mRemoteDataLoadingThread.execute();
 
     // 4.exit after finishing all workloads
     while (true){
@@ -123,6 +104,7 @@ public class Simulator {
       while (iterator.hasNext()){
         Workload workload = iterator.next();
         if (simulator.mWorkloads.get(workload).isDone()){
+          System.out.println(workload + "-" + workload.getId() + " is done");
           iterator.remove();
           simulator.mWorkloads.remove(workload);
           boolean datasetStillBeUsed = false;
@@ -147,14 +129,55 @@ public class Simulator {
       Thread.sleep(1000);
     }
 
-    simulator.mRemoteDataLoadingThread.shutdown();
+    remoteDataLoadingRunnable.setTerminate(true);
+//    simulator.mRemoteDataLoadingThread.shutdown();
     simulator.mRemoteDataLoader.shutdown();
+    simulator.mWorkloadExecutors.shutdown();
     System.out.println("All workloads are finished!");
     simulator.mLogWriter.write("All workloads are finished!\n");
     simulator.mLogWriter.close();
     simulator.mCacheUsageWriter.close();
     simulator.mBwUsageWriter.close();
     simulator.mChunkReadTimeWriter.close();
+  }
 
+  static class RemoteDataLoadingRunnable implements Runnable{
+    boolean mTerminate;
+    Simulator mSimulator;
+
+    public RemoteDataLoadingRunnable(Simulator simulator) {
+      mSimulator = simulator;
+    }
+
+    public void setTerminate(boolean terminate) {
+      mTerminate = terminate;
+    }
+
+    @Override
+    public void run() {
+      List<WorkloadDataReadingInfo> workloadDataReadingInfos = new ArrayList<>();
+      while (!mTerminate) {
+        workloadDataReadingInfos.clear();
+        for (Workload workload : mSimulator.mWorkloads.keySet()) {
+          workloadDataReadingInfos.add(workload.getCurrentDataReadingInfo());
+        }
+        try {
+          mSimulator.mRemoteDataLoader.loadChunks(workloadDataReadingInfos);
+        } catch (IOException | InterruptedException e) {
+          e.printStackTrace();
+          // 在shutdown loading thread之后, 设置了interrupt标记, loadChunks中的sleep会强制抛出interruptedException,
+          // 并清除了interrupt标记, 导致thread继续运行,
+          // 因此这里可以强制重新设置interrupt标记, 但这种不太直观
+          // 可以显式的传递terminate信号
+
+
+          // Thread.interrupt()只是设置中断标志, 并不会去立即停止当前线程, 需要线程自己去判断这个标志, 并作相应的处理
+          //          Thread.currentThread().interrupt();
+          //          mTerminate = true;
+        }
+      }
+    }
   }
 }
+
+

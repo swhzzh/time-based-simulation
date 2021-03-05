@@ -56,22 +56,31 @@ public class RemoteDataLoader {
       List<Integer> readChunks = info.getReadChunks();
       List<Integer> unReadChunks = info.getUnReadChunks();
 
-      // 1.get time for chunks to load(unread & uncached)
-      // 这里只从当前epoch中未读的chunks中选择要load的chunk, 但也可以为下一个epoch提前加载已读但被evict(目前uncached)的chunk
-      // TODO: 2021/2/28 在cache空间有剩余的情况下, 加载上述所说的chunk 
-//      List<Integer> cachedChunks = allCachedChunks.get(datasetId);
+
       int unReadAndCachedChunkNum = 0;
       for (Integer unReadChunk : unReadChunks) {
         if (mResourceManager.isChunkCached(datasetId, unReadChunk)){
           unReadAndCachedChunkNum++;
         }
       }
+      int readAndCachedChunkNum = 0;
+      for (Integer readChunk : readChunks) {
+        if (mResourceManager.isChunkCached(datasetId, readChunk)){
+          readAndCachedChunkNum++;
+        }
+      }
+
+      // 1.get time for chunks to load(unread & uncached)
+      // 这里只从当前epoch中未读的chunks中选择要load的chunk, 但也可以为下一个epoch提前加载已读但被evict(目前uncached)的chunk
+      // TODO: 2021/2/28 在cache空间有剩余的情况下, 加载上述所说的chunk, 如果空间无剩余, 可能导致自己的同样是已读的cached的chunk被evict, 而这样只会白白浪费带宽, 因为
+//      List<Integer> cachedChunks = allCachedChunks.get(datasetId);
       int temp = 0;
       for (Integer unReadChunk : unReadChunks) {
         if (!mResourceManager.isChunkCached(datasetId, unReadChunk)){
           long time = info.getLatestTime() + (unReadAndCachedChunkNum + temp) * info.getMinChunkConsumeTime();
           // 说明第一个chunk还在等, 那第二个chunk的时间最早也是从现在算起, 而不应该用第一个chunk的时间,
           // 第一个chunk应该保留原有的时间, 从而实现等得越久优先级越高
+          // TODO: 2021/3/5 这里直接用当前时间作为base也并不那么合理, 首先, 并不一定会load前面的chunk(第一个都无法load, 那之后的都没啥意义, 不过第一个都无法load的话, 那确实之后的肯定无法被load, 也还行), 其次因为可能加载的速度并不如计算快, 也不能用minChunkConsumeTime算.
           if (temp == 1 && time < System.currentTimeMillis()){
             time = System.currentTimeMillis() + (unReadAndCachedChunkNum + temp) * info.getMinChunkConsumeTime();
           }
@@ -82,14 +91,27 @@ public class RemoteDataLoader {
           }
         }
       }
-
-      // 2.get time for chunks to evict(read & cached)
-      int readAndCachedChunkNum = 0;
-      for (Integer readChunk : readChunks) {
-        if (mResourceManager.isChunkCached(datasetId, readChunk)){
-          readAndCachedChunkNum++;
+      int tempBase = temp;
+      if (temp < 2){
+        for (Integer readChunk : readChunks) {
+          if (!mResourceManager.isChunkCached(datasetId, readChunk)){
+            long time = info.getLatestTime() + (unReadChunks.size() + readChunks.size() - readAndCachedChunkNum + temp - tempBase) * info.getMinChunkConsumeTime();
+            if (temp == 1 && time < System.currentTimeMillis()){
+              time = System.currentTimeMillis() + (unReadChunks.size() + readChunks.size() - readAndCachedChunkNum + temp - tempBase) * info.getMinChunkConsumeTime();
+            }
+            chunksToLoadToTimeInfoMap.put(new Pair<>(datasetId, readChunk), time);
+            temp++;
+            if (temp == 2){
+              break;
+            }
+          }
         }
       }
+
+      // 2.get time for chunks to evict(read & cached)
+      // TODO: 2021/3/5 也可能存在某个dataset的cached chunk全部未被读, 但是确实空间不足要淘汰chunk, 现在的实现是只考虑读过的chunk, 如果都没读就不考虑了,
+      //  但可能存在未读的后面的chunk的访问时间比别人读过的chunk的下一次访问时间更晚, 或者别人在等着用cache去缓存chunk, 这种时候还是要考虑evict未读的cached的chunk
+
       temp = 0;
       for (int i = readChunks.size() - 1; i >= 0; i--) {
         int chunkId = readChunks.get(i);
@@ -100,6 +122,20 @@ public class RemoteDataLoader {
           temp++;
           if (temp == 2){
             break;
+          }
+        }
+      }
+
+      if (temp < 2){
+        for (int i = unReadChunks.size() - 1; i >= 0; i--) {
+          int chunkId = unReadChunks.get(i);
+          if (mResourceManager.isChunkCached(datasetId, chunkId)){
+            chunksToEvictToTimeInfoMap.put(new Pair<>(datasetId, chunkId),
+                System.currentTimeMillis() + info.getMinChunkConsumeTime() + i * info.getMinChunkConsumeTime());
+            temp++;
+            if (temp == 2){
+              break;
+            }
           }
         }
       }
