@@ -32,7 +32,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>ruc.swh.ZkHeartbeat</mainClass>
+                            <mainClass>ruc.swh.Simulator</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
