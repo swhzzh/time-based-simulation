@@ -1,7 +1,6 @@
 package ruc.swh;
 
 
-import javafx.util.Pair;
 import org.isomorphism.util.*;
 
 import java.io.BufferedWriter;
