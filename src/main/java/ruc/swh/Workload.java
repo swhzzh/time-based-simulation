@@ -146,8 +146,8 @@ public class Workload implements Runnable{
                         for (int k = 0; k < mChunkBatchNum; k++) {
                             // 这里不应该是顺序的
                             //
-                            //                    System.out.println(mId + ": read batch " + k);
-                            mTokenBucket.consume(mBatchItemCount);
+//                                                System.out.println(mId + ": read batch " + k);
+
                             while (true){
                                 //                        System.out.println(mId + ": read batch " + k);
                                 boolean result = mResourceManager.getBatchData(mId, mDatasetId, j, mBatchItemCount);
@@ -155,6 +155,9 @@ public class Workload implements Runnable{
                                     try {
                                         Thread.sleep(10);
                                         mWaitTime += 10;
+//                                        if (mWaitTime % 500 == 0){
+//                                            System.out.println(Thread.currentThread().getState());
+//                                        }
                                         //                                System.out.println(mId + "-workload waits for: " + mWaitTime);
                                     } catch (InterruptedException e) {
                                         e.printStackTrace();
@@ -164,6 +167,9 @@ public class Workload implements Runnable{
                                     break;
                                 }
                             }
+                            // compute
+                            mTokenBucket.consume(mBatchItemCount);
+
                             mCurrentChunkRemainTime = mCurrentChunkRemainTime * (mChunkBatchNum - k) / mChunkBatchNum;
                         }
 

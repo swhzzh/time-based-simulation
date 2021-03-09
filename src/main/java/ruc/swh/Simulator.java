@@ -64,7 +64,7 @@ public class Simulator {
   }
 
   public static void main(String[] args) throws InterruptedException, IOException {
-    long bw = 1000;
+    long bw = 100;
     long cacheCapacity = 300;
     String logDir = "src/main/resources/logs";
     if (args.length == 3){
@@ -107,12 +107,13 @@ public class Simulator {
 
     // 4.exit after finishing all workloads
     while (true){
+      Thread.sleep(10000);
       Iterator<Workload> iterator = simulator.mWorkloads.keySet().iterator();
       boolean terminate = false;
       while (iterator.hasNext()){
         Workload workload = iterator.next();
         if (simulator.mWorkloads.get(workload).isDone()){
-          System.out.println(workload + "-" + workload.getId() + " is done");
+          System.out.println("workload-" + workload.getId() + " is done");
           iterator.remove();
           simulator.mWorkloads.remove(workload);
           boolean datasetStillBeUsed = false;
@@ -134,7 +135,7 @@ public class Simulator {
       if (terminate){
         break;
       }
-      Thread.sleep(1000);
+
     }
 
     remoteDataLoadingRunnable.setTerminate(true);
